@@ -1,4 +1,6 @@
 #include <inttypes.h>
+#include <stdint.h>
+#include <stdio.h>
 #include <string.h>
 
 /*
@@ -21,7 +23,8 @@ typedef struct {
 
 #define MAX_ADDRESS 0x10000
 typedef struct {
-	word addr[ MAX_ADDRESS ];	
+	word address[ MAX_ADDRESS ];
+	word size;
 } RAM;
 
 const int MAX_NUM_LINES = 250000; // 8mb / 32b = 250_000
@@ -32,11 +35,30 @@ typedef struct {
 } CACHE;
 
 void mem_init(RAM *r) {
-	memset(r->addr, 0, MAX_ADDRESS);
+	memset(r->address, 0, MAX_ADDRESS);
+	r->size = 0;
+}
+
+
+//load 11 chars: 'hello world\n' from address[0x00:0x0B]
+void load_to_main_memory(RAM *r, const byte data[], word size) {
+	for(word i = 0; i < size; i++){
+		r->address[i] = data[i];
+		r->size += 1;
+	}
+}
+
+void dump_main_memory(RAM *r) {
+	for(word i = 0; i < r->size; i++)
+		printf("%c", r->address[i]);
+
 }
 int main () { 
 	RAM r;
 	CACHE c;
+	const byte string[13] = { 'h', 'e', 'l', 'l', 'o', ' ', 'w', 'o', 'r', 'l', 'd', '\n', '\0' };
+	load_to_main_memory(&r, string, 13); 
+	dump_main_memory(&r);	
 	return 0; 
 }
 
