@@ -32,6 +32,15 @@ word RAM[MAX_ADDRESS];
  * The cache has m lines and n blocks such that m * n = cache size
  * The number of lines and number of blocks (contained in a line)
  * should not exceed the cache size
+ *
+ * Cache is 2-way set-associative
+ * we have 16-bit addreses, the address is split as follows:
+ * 
+ * ------------------------------------------------------
+ * | 16-bit adress           				|
+ * |----------------------------------------------------|
+ * | 4 tag-bits | 6 byte-offset bits | 6 set-index bits | 
+ * ------------------------------------------------------
  * */
 #define CACHE_SIZE 0x2000 //1kb -> 8192 bits
 #define CACHE_NUM_LINES 0x80 //128 bytes
