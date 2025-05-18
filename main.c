@@ -39,14 +39,19 @@ word RAM[MAX_ADDRESS];
  * ------------------------------------------------------
  * | 16-bit adress           				|
  * |----------------------------------------------------|
- * | 4 tag-bits | 6 byte-offset bits | 6 set-index bits | 
+ * | 6 tag-bits | 6 byte-offset bits | 4 set-index bits | 
  * ------------------------------------------------------
  * */
-#define CACHE_SIZE 0x2000 //1kb -> 8192 bits
-#define CACHE_NUM_LINES 0x80 //128 bytes
-#define CACHE_NUM_BLOCKS 0x40 //64 bytes
+#define CACHE_SIZE 0x2000 //1kb -> 8192 bytes 
+#define CACHE_NUM_LINES 0x40 //64 lines, 16 sets each containing 4 lines, each line is 128 bytes long
+#define CACHE_NUM_BLOCKS 0x80 //128 bytes
 
-word CACHE[CACHE_NUM_LINES][CACHE_NUM_BLOCKS];
+
+const int CACHE_NUM_SETS = 16;
+typedef struct {
+	byte store[CACHE_NUM_LINES]; // we store 1 extra byte per line to store tag, and line's status
+	byte memory[CACHE_NUM_BLOCKS][CACHE_NUM_BLOCKS];
+} CACHE;
 
 /*
  * RAM memory map: https://www.researchgate.net/figure/RAM-Memory-Map-213-Ports-The-original-8051-had-four-eight-pin-general-purpose_fig2_291196461
@@ -57,7 +62,35 @@ word CACHE[CACHE_NUM_LINES][CACHE_NUM_BLOCKS];
  * */
 void load_ram_line_to_cache(){};
 
+/*
+ * we have 64 lines / 4 way sets = 16 total sets
+ * so we want to bound our address to one of those 16 sets
+ * such that 0 <= address < 16
+ * */
+int get_set_index(word address){ return address % CACHE_NUM_SETS; }
 
+/*
+ * once we find our set index (which can be thought of as a bucket containing 4 lines each)
+ * More specifically, it contains <num lines per set>*ith and <num lines per set>*ith+<num lines per set> - 1 lines, 
+ * where i is the set index
+ * we perform a tag comparison in these two lines to determine whether
+ * it is a cache hit or miss
+ * */
+int is_cache_hit(word address, CACHE *c){
+	int set_index = get_set_index(address);
+	int i = 4 * set_index; //calculated as: <number of lines per set> * i, where i is the ith set
+	/*
+	 * grab the upper 4 bits (MSBs are unique) of the address and move it to the 
+	 * lower 8 bits to prevent overflow when storing in byte
+	 * */
+	byte tag = (address & 0xF000) >> 12; 
+	return (
+		(c->store[i] & tag) ||
+		(c->store[i + 1] & tag) ||
+		(c->store[i + 2] & tag) ||
+		(c->store[i + 3] & tag) 
+	);
+}
 
 
 int main () { 
