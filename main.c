@@ -26,10 +26,7 @@ typedef struct {
 
 
 #define MAX_ADDRESS 0x10000 //65kb
-typedef struct {
-	word address[ MAX_ADDRESS ];
-	word size; //keep track of addresses occupied
-} RAM;
+word RAM[MAX_ADDRESS];
 
 /*
  * The cache has m lines and n blocks such that m * n = cache size
@@ -51,31 +48,12 @@ word CACHE[CACHE_NUM_LINES][CACHE_NUM_BLOCKS];
  * */
 void load_ram_line_to_cache(){};
 
-void mem_init(RAM *r) {
-	memset(r->address, 0, MAX_ADDRESS);
-	r->size = 0;
-}
 
 
-//load 11 chars: 'hello world\n' from address[0x00:0x0B]
-void load_to_main_memory(RAM *r, const byte data[], word size) {
-	for(word i = 0; i < size; i++){
-		r->address[i] = data[i];
-		r->size += 1;
-	}
-}
 
-void dump_main_memory(RAM *r) {
-	for(word i = 0; i < r->size; i++)
-		printf("%c", r->address[i]);
-
-}
 int main () { 
-	RAM r;
-	CACHE c;
 	const byte string[13] = { 'h', 'e', 'l', 'l', 'o', ' ', 'w', 'o', 'r', 'l', 'd', '\n', '\0' };
-	load_to_main_memory(&r, string, 13); 
-	dump_main_memory(&r);	
+
 	return 0; 
 }
 
