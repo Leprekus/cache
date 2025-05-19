@@ -45,18 +45,18 @@ word RAM[RAM_LINES][RAM_LINE_LENGTH];
  * Cache is 2-way set-associative
  * we have 16-bit addreses, the address is split as follows:
  * 
- * ------------------------------------------------------
- * | 16-bit adress           				|
- * |----------------------------------------------------|
- * | 6 tag-bits | 6 byte-offset bits | 4 set-index bits | 
- * ------------------------------------------------------
+ * ---------------------------------------------------------------------
+ * | 			16-bit adress           			|
+ * |--------------------------------------------------------------------|
+ * | 7 tag-bits | 4 set-index bits (0..15) | 5 byte-offset bits (0..63) | 
+ * ----------------------------------------------------------------------
  * */
 #define CACHE_SIZE 4096 // 4096 bytes 
 #define CACHE_NUM_LINES 64 //64 lines, 16 sets each containing 4 lines, each line is 128 bytes long
 #define CACHE_NUM_BLOCKS 64 //64 bytes
 
 
-const int CACHE_NUM_SETS = 16;
+const int CACHE_NUM_SETS = 16; // 64 lines / 4-way sets = 16 sets
 typedef struct {
 	byte store[CACHE_NUM_LINES]; // we store 1 extra byte per line to store tag, and line's status
 	byte memory[CACHE_NUM_BLOCKS][CACHE_NUM_BLOCKS];
@@ -72,12 +72,44 @@ typedef struct {
 void load_ram_line_to_cache(){};
 
 /*
- * we have 64 lines / 4 way sets = 16 total sets
- * so we want to bound our address to one of those 16 sets
- * such that 0 <= address < 16
- * */
-int get_set_index(word address){ return address % CACHE_NUM_SETS; }
+*word = 0b kkkk kkii iiii kkkk, 
+*the i bits indicate the S_ith collection to which the range of addresses belongs to
+*since each collection consists of 64 addresses we have 1024 collections
+*these 10 significant bits (i) needed to represent the number 1024 
+*indicate the "collection's number"
+*we map this collection to a set by doing i % num_of_buckets
+*/
+int get_set_index(word address){ 
+	//0b0000001111000000
+	word index = (address & 0x3C0) >> 6;
+	//since we have 4 lines per set we offset  the set's start
+	return index * 4; 
+}
 
+/* we get the lower bound of the current address by zeroing it*/
+int get_address_start(word address){
+	//binary = 0b1111 1111 1100 0000
+	int lower_bound = address & 0xFFC0;
+	return lower_bound;
+}
+
+/* we get the upper bound of the current address by one-ing it*/
+int get_address_end(word address){
+	int upper_bound = address & 0xFFFF;
+	return upper_bound;
+}
+
+int get_block_index(word address){
+	//0b1111110000000000
+	word tag = (address & 0xFC00) >> 10;
+	return tag;
+}
+
+int get_offset(word address){
+	// 0b0000 0000 0011 1111
+	int offset = (address & 0x003F);
+	return offset;
+}
 /*
  * once we find our set index (which can be thought of as a bucket containing 4 lines each)
  * More specifically, it contains <num lines per set>*ith and <num lines per set>*ith+<num lines per set> - 1 lines, 
@@ -87,31 +119,39 @@ int get_set_index(word address){ return address % CACHE_NUM_SETS; }
  * */
 int is_cache_hit(word address, CACHE *c){
 	int set_index = get_set_index(address);
-	int i = 4 * set_index; //calculated as: <number of lines per set> * i, where i is the ith set
-	/*
-	 * grab the upper 4 bits (MSBs are unique) of the address and move it to the 
-	 * lower 8 bits to prevent overflow when storing in byte
-	 * */
-	byte tag = (address & 0xF000) >> 12; 
+	int tag = get_block_index(address);
+	int offset = get_offset(address);
 	return (
-		(c->store[i] & tag) ||
-		(c->store[i + 1] & tag) ||
-		(c->store[i + 2] & tag) ||
-		(c->store[i + 3] & tag) 
+		(c->memory[set_index + 0][0] & tag) ||
+		(c->memory[set_index + 1][0] & tag) ||
+		(c->memory[set_index + 2][0] & tag) ||
+		(c->memory[set_index + 3][0] & tag) 
+		
 	);
 }
 
 
+/*testing that the address distribution across sets is correct*/
 void test_get_set_index(){
-	for(int i = 0; i < MAX_ADDRESS; i++)
-		assert(get_set_index(i) <= 16);
+	int count[16] = {0};
+	for(int address = 0; address < MAX_ADDRESS; address++){
+		count[ get_set_index(address) ]++;
+
+	}
+	int total = 0;
+	for(int i = 0; i < 16; i++){
+		total += count[i];
+		assert(count[i] == 4096);
+        	printf("Set %d: %d addresses\n", i, count[i]);
+    	}
+	assert(total == 65536);
+	printf("total %d / 65536\n", total);
 	printf("test_get_set_index is successful\n");
 }
 void test_is_cache_hit(){
 	CACHE c;
 	assert(is_cache_hit(0xCAFE, &c) == 0);
 
-	c[0xBABE] = 
 	assert(is_cache_hit(0xBABE, &c) == 1);
 	printf("test_is_cache_hit is successful\n");
 }
