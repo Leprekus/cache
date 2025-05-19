@@ -69,7 +69,9 @@ typedef struct {
  * so whenever an address is retrieved, the whole line where
  * that address..address + 128  will be moved into cache for cache-locality.
  * */
-void load_ram_line_to_cache(){};
+void load_block_to_cache(word address){};
+
+void fetch_byte(word address){}
 
 /*
 *word = 0b kkkk kkii iiii kkkk, 
@@ -147,6 +149,16 @@ void test_get_set_index(){
 	assert(total == 65536);
 	printf("total %d / 65536\n", total);
 	printf("test_get_set_index is successful\n");
+}
+/*test 64 blocks are mapped to each set and loaded correctly
+ * if the address is not in the cache it should be loaded to it
+ * and all local addresses should be fetched from the cache
+ * */
+void test_blocks(){
+	for(int address = 0; address < MAX_ADDRESS; address++){
+	
+	}
+	
 }
 void test_is_cache_hit(){
 	CACHE c;
