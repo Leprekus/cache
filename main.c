@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <inttypes.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -26,7 +27,15 @@ typedef struct {
 
 
 #define MAX_ADDRESS 0x10000 //65kb
-word RAM[MAX_ADDRESS];
+#define RAM_LINES 1024 //1024 * 64 = 65,536
+#define RAM_LINE_LENGTH 64
+/**
+ * Even though in a real system the memory is contigouous,
+ * this abstraction makes determining the starting and ending
+ * addresses for cache locality much easier. As zeroing the block offest (RAM_LENGTH)
+ * gives the starting address, and one ing it gives the ending address
+ */
+word RAM[RAM_LINES][RAM_LINE_LENGTH];
 
 /*
  * The cache has m lines and n blocks such that m * n = cache size
@@ -42,9 +51,9 @@ word RAM[MAX_ADDRESS];
  * | 6 tag-bits | 6 byte-offset bits | 4 set-index bits | 
  * ------------------------------------------------------
  * */
-#define CACHE_SIZE 0x2000 //1kb -> 8192 bytes 
-#define CACHE_NUM_LINES 0x40 //64 lines, 16 sets each containing 4 lines, each line is 128 bytes long
-#define CACHE_NUM_BLOCKS 0x80 //128 bytes
+#define CACHE_SIZE 4096 // 4096 bytes 
+#define CACHE_NUM_LINES 64 //64 lines, 16 sets each containing 4 lines, each line is 128 bytes long
+#define CACHE_NUM_BLOCKS 64 //64 bytes
 
 
 const int CACHE_NUM_SETS = 16;
@@ -58,7 +67,7 @@ typedef struct {
  *
  * RAM will be divided into 'lines' that are the length of our cache-lines
  * so whenever an address is retrieved, the whole line where
- * that address is located will be moved into cache for cache-locality.
+ * that address..address + 128  will be moved into cache for cache-locality.
  * */
 void load_ram_line_to_cache(){};
 
@@ -93,8 +102,22 @@ int is_cache_hit(word address, CACHE *c){
 }
 
 
+void test_get_set_index(){
+	for(int i = 0; i < MAX_ADDRESS; i++)
+		assert(get_set_index(i) <= 16);
+	printf("test_get_set_index is successful\n");
+}
+void test_is_cache_hit(){
+	CACHE c;
+	assert(is_cache_hit(0xCAFE, &c) == 0);
+
+	c[0xBABE] = 
+	assert(is_cache_hit(0xBABE, &c) == 1);
+	printf("test_is_cache_hit is successful\n");
+}
 int main () { 
 	const byte string[13] = { 'h', 'e', 'l', 'l', 'o', ' ', 'w', 'o', 'r', 'l', 'd', '\n', '\0' };
+	test_get_set_index();
 
 	return 0; 
 }
