@@ -27,11 +27,10 @@ typedef struct {
 } BUSES;
 
 
-
-#define MAX_ADDRESS 0x10000 //65kb
-#define RAM_LINES 1024 //1024 * 64 = 65,536
+#define MAX_ADDRESS 0x10000 
+#define RAM_LINES 1024 
 #define RAM_LINE_LENGTH 64
-word RAM[MAX_ADDRESS];
+byte RAM[MAX_ADDRESS];
 
 /*
  * The cache has m lines and n blocks such that m * n = cache size
@@ -230,10 +229,13 @@ void test_is_cache_hit(){
 	printf("test_is_cache_hit is successful\n");
 }
 
-void load_data(byte *data, size_t len){
+void load_data(const byte data[], size_t len){
 	for(int i = 0; i < len; i++){
 		RAM[i] = data[i]; 
 	}
+}
+void dump_memory(){
+	
 }
 
 void unit_tests() {
@@ -244,6 +246,10 @@ void unit_tests() {
 }
 int main () { 
 	const byte string[13] = { 'h', 'e', 'l', 'l', 'o', ' ', 'w', 'o', 'r', 'l', 'd', '\n', '\0' };
+	CACHE c;
+	system_init(&c);
+	load_data(string, 13);
+	dump_memory();
 	unit_tests();	
 	return 0; 
 }
