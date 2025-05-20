@@ -2,7 +2,9 @@
 #include <inttypes.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 /*
 * specs: 
@@ -59,17 +61,8 @@ word RAM[RAM_LINES][RAM_LINE_LENGTH];
 const int CACHE_NUM_SETS = 16; // 64 lines / 4-way sets = 16 sets
 typedef struct {
 	byte store[CACHE_NUM_LINES]; // we store 1 extra byte per line to store tag, and line's status
-	byte memory[CACHE_NUM_BLOCKS][CACHE_NUM_BLOCKS];
+	byte memory[CACHE_NUM_LINES][CACHE_NUM_BLOCKS];
 } CACHE;
-
-/*
- * RAM memory map: https://www.researchgate.net/figure/RAM-Memory-Map-213-Ports-The-original-8051-had-four-eight-pin-general-purpose_fig2_291196461
- *
- * RAM will be divided into 'lines' that are the length of our cache-lines
- * so whenever an address is retrieved, the whole line where
- * that address..address + 128  will be moved into cache for cache-locality.
- * */
-void load_block_to_cache(word address){};
 
 void fetch_byte(word address){}
 
@@ -95,15 +88,15 @@ int get_address_start(word address){
 	return lower_bound;
 }
 
-/* we get the upper bound of the current address by one-ing it*/
+/* we get the upper bound of the current address by setting 6 LSBs*/
 int get_address_end(word address){
-	int upper_bound = address & 0xFFFF;
+	int upper_bound = address | 0x003F;
 	return upper_bound;
 }
 
-int get_block_index(word address){
-	//0b1111110000000000
-	word tag = (address & 0xFC00) >> 10;
+byte get_tag(word address){
+	//in a 16-bit address we want to retrieve the 6 MSBs used as the tag
+	word tag = address >> 10;
 	return tag;
 }
 
@@ -119,18 +112,32 @@ int get_offset(word address){
  * we perform a tag comparison in these two lines to determine whether
  * it is a cache hit or miss
  * */
+#define COMPARE_TAG(x, y) (((x) >> 2) == (y))
 int is_cache_hit(word address, CACHE *c){
 	int set_index = get_set_index(address);
-	int tag = get_block_index(address);
-	int offset = get_offset(address);
+	byte tag = get_tag(address);
 	return (
-		(c->memory[set_index + 0][0] & tag) ||
-		(c->memory[set_index + 1][0] & tag) ||
-		(c->memory[set_index + 2][0] & tag) ||
-		(c->memory[set_index + 3][0] & tag) 
+		COMPARE_TAG(c->store[set_index + 0], tag) ||
+		COMPARE_TAG(c->store[set_index + 1], tag) ||
+		COMPARE_TAG(c->store[set_index + 2], tag) ||
+		COMPARE_TAG(c->store[set_index + 3], tag) 
 		
 	);
 }
+
+
+/*
+ * RAM memory map: https://www.researchgate.net/figure/RAM-Memory-Map-213-Ports-The-original-8051-had-four-eight-pin-general-purpose_fig2_291196461
+ *
+ * RAM will be divided into 'lines' that are the length of our cache-lines
+ * so whenever an address is retrieved, the whole line where
+ * that address..address + 128  will be moved into cache for cache-locality.
+ * */
+void load_block_to_cache(word address, CACHE *c){
+	int lower = get_address_start(address);
+	int upper = get_address_end(address);
+
+};
 
 
 /*testing that the address distribution across sets is correct*/
@@ -150,26 +157,63 @@ void test_get_set_index(){
 	printf("total %d / 65536\n", total);
 	printf("test_get_set_index is successful\n");
 }
+
+void test_address_start_end(){
+	for(int address = 0; address < MAX_ADDRESS; address++){
+		int upper = get_address_end(address);
+		int lower = get_address_start(address);
+		assert(upper - lower == 63);
+	}
+	printf("test_address_start_end is successful\n");
+}
 /*test 64 blocks are mapped to each set and loaded correctly
  * if the address is not in the cache it should be loaded to it
  * and all local addresses should be fetched from the cache
  * */
 void test_blocks(){
+	CACHE c;
 	for(int address = 0; address < MAX_ADDRESS; address++){
-	
+		int lower = get_address_start(address) + 1;
+		int upper = get_address_end(address);
+		//address should be in cache
+		if(lower <= address && address <= upper) 
+			assert(is_cache_hit(address, &c) == 1);	
+		//cache miss and address is loaded into cache
+		else { 
+			assert(is_cache_hit(address, &c) == 0);
+			load_block_to_cache(address, &c);
+		}
+		
 	}
+	printf("test_blocks is successful\n");
 	
 }
 void test_is_cache_hit(){
 	CACHE c;
-	assert(is_cache_hit(0xCAFE, &c) == 0);
 
+	assert(is_cache_hit(0xCAFE, &c) == 0);
+	
+	
+	//generate random index from 0..3 to make sure we are looking in the 4 lines of the set
+	srand(time(NULL)); 
+	int noise = rand() % 4; 
+	int set_index = get_set_index(0xBABE) + noise;
+
+	//load the cache with some data
+	int lower = get_address_start(0XBABE);
+	int upper = get_address_end(0xBABE);
+	for(int i = lower; i < upper; i++) c.memory[set_index][upper - i] = 'a';	
+	//store the tag in the cache store
+	byte tag = get_tag(0XBABE);
+	// we shift 2 because the 2 LSBs are reserved for policy and data validity
+	c.store[set_index] = tag << 2; 
 	assert(is_cache_hit(0xBABE, &c) == 1);
 	printf("test_is_cache_hit is successful\n");
 }
 int main () { 
 	const byte string[13] = { 'h', 'e', 'l', 'l', 'o', ' ', 'w', 'o', 'r', 'l', 'd', '\n', '\0' };
-	test_get_set_index();
+	//test_get_set_index();
+	test_is_cache_hit();
 
 	return 0; 
 }
