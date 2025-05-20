@@ -175,7 +175,6 @@ void test_get_set_index(){
 	printf("total %d / 65536\n", total);
 	printf("test_get_set_index is successful\n");
 }
-
 void test_address_start_end(){
 	for(int address = 0; address < MAX_ADDRESS; address++){
 		int upper = get_address_end(address);
@@ -188,7 +187,7 @@ void test_address_start_end(){
  * if the address is not in the cache it should be loaded to it
  * and all local addresses should be fetched from the cache
  * */
-void test_blocks(){
+void test_locality(){
 	CACHE c;
 	system_init(&c);
 	for(int address = 0; address < MAX_ADDRESS; address++){
@@ -231,7 +230,10 @@ void test_is_cache_hit(){
 }
 int main () { 
 	const byte string[13] = { 'h', 'e', 'l', 'l', 'o', ' ', 'w', 'o', 'r', 'l', 'd', '\n', '\0' };
-	test_blocks();
+	test_get_set_index();
+	test_address_start_end();
+	test_locality();
+	test_is_cache_hit();
 
 	return 0; 
 }
