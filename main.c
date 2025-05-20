@@ -229,13 +229,22 @@ void test_is_cache_hit(){
 	assert(is_cache_hit(0xBABE, &c) == 1);
 	printf("test_is_cache_hit is successful\n");
 }
-int main () { 
-	const byte string[13] = { 'h', 'e', 'l', 'l', 'o', ' ', 'w', 'o', 'r', 'l', 'd', '\n', '\0' };
+
+void load_data(byte *data, size_t len){
+	for(int i = 0; i < len; i++){
+		RAM[i] = data[i]; 
+	}
+}
+
+void unit_tests() {
 	test_get_set_index();
 	test_address_start_end();
 	test_locality();
 	test_is_cache_hit();
-
+}
+int main () { 
+	const byte string[13] = { 'h', 'e', 'l', 'l', 'o', ' ', 'w', 'o', 'r', 'l', 'd', '\n', '\0' };
+	unit_tests();	
 	return 0; 
 }
 
