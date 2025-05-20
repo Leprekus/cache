@@ -31,13 +31,7 @@ typedef struct {
 #define MAX_ADDRESS 0x10000 //65kb
 #define RAM_LINES 1024 //1024 * 64 = 65,536
 #define RAM_LINE_LENGTH 64
-/**
- * Even though in a real system the memory is contigouous,
- * this abstraction makes determining the starting and ending
- * addresses for cache locality much easier. As zeroing the block offest (RAM_LENGTH)
- * gives the starting address, and one ing it gives the ending address
- */
-word RAM[RAM_LINES][RAM_LINE_LENGTH];
+word RAM[MAX_ADDRESS];
 
 /*
  * The cache has m lines and n blocks such that m * n = cache size
@@ -50,8 +44,13 @@ word RAM[RAM_LINES][RAM_LINE_LENGTH];
  * ---------------------------------------------------------------------
  * | 			16-bit adress           			|
  * |--------------------------------------------------------------------|
- * | 7 tag-bits | 4 set-index bits (0..15) | 5 byte-offset bits (0..63) | 
+ * | 6 tag-bits | 4 set-index bits (0..15) | 6 byte-offset bits (0..63) | 
  * ----------------------------------------------------------------------
+ * ------------------------------------------
+ * | 		8-bit store		    |
+ * |----------------------------------------|
+ * | 6-tag bits | 1 valid bit | 1 dirty bit |
+ * ------------------------------------------
  * */
 #define CACHE_SIZE 4096 // 4096 bytes 
 #define CACHE_NUM_LINES 64 //64 lines, 16 sets each containing 4 lines, each line is 128 bytes long
@@ -112,7 +111,9 @@ int get_offset(word address){
  * we perform a tag comparison in these two lines to determine whether
  * it is a cache hit or miss
  * */
-#define COMPARE_TAG(x, y) (((x) >> 2) == (y))
+
+//align tag bits with store's tag and check if data is valid (second LSB is set)
+#define COMPARE_TAG(x, y) ((x) == (((y) << 2) | 0x02))
 int is_cache_hit(word address, CACHE *c){
 	int set_index = get_set_index(address);
 	byte tag = get_tag(address);
@@ -134,12 +135,29 @@ int is_cache_hit(word address, CACHE *c){
  * that address..address + 128  will be moved into cache for cache-locality.
  * */
 void load_block_to_cache(word address, CACHE *c){
+	int set_index = get_set_index(address);
 	int lower = get_address_start(address);
 	int upper = get_address_end(address);
+	byte tag = get_tag(address);
+	c->store[set_index] = (tag << 2) | 0x02;
+	for(int i = lower; i < upper; i++){
+		c->memory[set_index][upper - i] = RAM[i];
+	}
 
 };
 
 
+void system_init(CACHE *c){
+	for(int i = 0; i < MAX_ADDRESS; i++){
+		RAM[i] = 0x00;
+	}
+	for(int i = 0; i < CACHE_NUM_LINES; i++){
+		c->store[i] = 0x00;
+		for(int j = 0; j < CACHE_NUM_BLOCKS; j++){
+			c->memory[i][j] = 0x00;
+		}
+	}
+}
 /*testing that the address distribution across sets is correct*/
 void test_get_set_index(){
 	int count[16] = {0};
@@ -172,6 +190,7 @@ void test_address_start_end(){
  * */
 void test_blocks(){
 	CACHE c;
+	system_init(&c);
 	for(int address = 0; address < MAX_ADDRESS; address++){
 		int lower = get_address_start(address) + 1;
 		int upper = get_address_end(address);
@@ -212,8 +231,7 @@ void test_is_cache_hit(){
 }
 int main () { 
 	const byte string[13] = { 'h', 'e', 'l', 'l', 'o', ' ', 'w', 'o', 'r', 'l', 'd', '\n', '\0' };
-	//test_get_set_index();
-	test_is_cache_hit();
+	test_blocks();
 
 	return 0; 
 }
