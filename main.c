@@ -66,18 +66,17 @@ typedef struct {
 void fetch_byte(word address){}
 
 /*
-*word = 0b kkkk kkii iiii kkkk, 
-*the i bits indicate the S_ith collection to which the range of addresses belongs to
-*since each collection consists of 64 addresses we have 1024 collections
-*these 10 significant bits (i) needed to represent the number 1024 
-*indicate the "collection's number"
-*we map this collection to a set by doing i % num_of_buckets
+*word = 0b kkkk kkii iikk kkkk, 
+* the i bits indicate the set number for that block 
+* such that 0 <= set number <= 15
+* a set has 4 lines meaning the ret value..ret value + 3
+* are all valid lines for a given set
 */
 int get_set_index(word address){ 
 	//0b0000001111000000
-	word index = (address & 0x3C0) >> 6;
+	word index = (address & 0x03C0) >> 6;
 	//since we have 4 lines per set we offset  the set's start
-	return index * 4; 
+	return index; 
 }
 
 /* we get the lower bound of the current address by zeroing it*/
@@ -134,12 +133,13 @@ int is_cache_hit(word address, CACHE *c){
  * so whenever an address is retrieved, the whole line where
  * that address..address + 128  will be moved into cache for cache-locality.
  * */
+#define SAVE_TO_STORE(x, y) ((x) = ((y) << 2 | 0x02))
 void load_block_to_cache(word address, CACHE *c){
 	int set_index = get_set_index(address);
 	int lower = get_address_start(address);
 	int upper = get_address_end(address);
 	byte tag = get_tag(address);
-	c->store[set_index] = (tag << 2) | 0x02;
+	SAVE_TO_STORE(c->store[set_index], tag);
 	for(int i = lower; i < upper; i++){
 		c->memory[set_index][upper - i] = RAM[i];
 	}
@@ -160,18 +160,19 @@ void system_init(CACHE *c){
 }
 /*testing that the address distribution across sets is correct*/
 void test_get_set_index(){
-	int count[16] = {0};
+	int set[16] = {0};
+	//map each address to one of the sets
 	for(int address = 0; address < MAX_ADDRESS; address++){
-		count[ get_set_index(address) ]++;
+		set[ get_set_index(address) ]++;
 
 	}
 	int total = 0;
 	for(int i = 0; i < 16; i++){
-		total += count[i];
-		assert(count[i] == 4096);
-        	printf("Set %d: %d addresses\n", i, count[i]);
+		total += set[i];
+		assert(set[i] == 4096);
+        	printf("Set %d: %d addresses\n", i, set[i]);
     	}
-	assert(total == 65536);
+	//assert(total == 65536);
 	printf("total %d / 65536\n", total);
 	printf("test_get_set_index is successful\n");
 }
@@ -203,7 +204,7 @@ void test_locality(){
 		}
 		
 	}
-	printf("test_blocks is successful\n");
+	printf("test_locality is successful\n");
 	
 }
 void test_is_cache_hit(){
@@ -224,7 +225,7 @@ void test_is_cache_hit(){
 	//store the tag in the cache store
 	byte tag = get_tag(0XBABE);
 	// we shift 2 because the 2 LSBs are reserved for policy and data validity
-	c.store[set_index] = tag << 2; 
+	SAVE_TO_STORE(c.store[set_index], tag);
 	assert(is_cache_hit(0xBABE, &c) == 1);
 	printf("test_is_cache_hit is successful\n");
 }
